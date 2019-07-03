@@ -1,6 +1,5 @@
 # mnist-infogan
-A GAN loosely based on INFOGAN trained to conditionally generate MNIST images
-A Keras GAN loosely based on [INFOGAN](https://arxiv.org/abs/1606.03657) trained on the MNIST dataset. This basicly just means that the discrimnator also attempts to predict class but is only trained to do this for the classes of the training data and the generator aims to fool the discriminator but have the class correctly preidcted.
+A GAN loosely based on [INFOGAN](https://arxiv.org/abs/1606.03657) trained to conditionally generate MNIST images. This basicly just means that the discrimnator also attempts to predict class but is only trained to do this for the classes of the training data and the generator aims to fool the discriminator but have the class correctly preidcted.
 
 WARNING: Only Linux is officaly supported  
 Feedback and pull requests are very welcome
