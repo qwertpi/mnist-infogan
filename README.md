@@ -39,7 +39,7 @@ For a summary of the licence go to https://tldrlegal.com/license/gnu-general-pub
 0\. Download this repo  
 ### Training (Optional)
 1\. Create a folder called images that will be used to peridocly save generated imaes to during training  
-2\. Run train.py or fancy_train.py for as long as you want (I recomend around 20,000 epochs), I trained using google colabatory  
+2\. Run train.py for as long as you want (I recomend around 20,000 epochs), I trained using google colabatory  
 ### Generating
 3\. Run generate.py  
 4\. Marvel at what modern neural networks can do  
