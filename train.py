@@ -1,3 +1,4 @@
+from os import system as bash
 from math import ceil, floor, sqrt
 from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Conv2DTranspose, BatchNormalization, Reshape, Flatten, Dropout, Concatenate
@@ -8,7 +9,7 @@ import keras.backend as K
 from keras.datasets import mnist
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm
 from keras.utils import plot_model
 
 #imports for LeakyRelu custom relu
@@ -17,7 +18,7 @@ from keras.initializers import RandomNormal, Constant
 
 K.clear_session()
 #if train.py is outside of the folder images, model files etc. should be saved to, specify the relative path from train.py to the folder here (ensure to include a trailing slash)
-path = "/mnt/drive/My Drive/colabatory/MNIST Condtional/"
+path = ""
 
 class LeakyRelu(Layer):
     '''Like leaky relu but does leaky for above a threshold and below a theshold with learned thresholds and learned slopes'''
@@ -42,13 +43,14 @@ class LeakyRelu(Layer):
         #seperate alphas for -1 leakage and 1 leakage
         #beta controls where the leakages start and is also trainable
         #each layer will have it's own sperate alpha_a, alpha_b, beta_a and beta_b as a seperate LeakyRelu object is used for each layer
+        #starts like a fairly normal leakyrelu
         self.alpha_a = self.add_weight(name='alpha_a',
                                        shape=(1,),
                                        initializer=self.alpha_initializer,
                                        trainable=True)
         self.alpha_b = self.add_weight(name='alpha_b',
                                        shape=(1,),
-                                       initializer=self.alpha_initializer,
+                                       initializer=Constant(1),
                                        trainable=True)
         
         self.beta_a = self.add_weight(name='beta_a',
@@ -85,13 +87,8 @@ class LeakyRelu(Layer):
 
 get_custom_objects().update({'LeakyRelu': LeakyRelu()})
 
-#starting values for Adam
-#momentum 0
 discrim_optimizer = Adam(0.0005, beta_1=0.5)
-
-#we don't want the generator jumping to conclusions before the discriminator is well trained else it will learn the wrong things
 gen_optimizer = Adam(0.0005, beta_1=0.5)
-
 classifier_optimizer = Adam(0.0005, beta_1=0.5)
 
 #loads the MNIST data which we will be training the GAN to imitate
@@ -151,7 +148,6 @@ norm = BatchNormalization()(activation)
 img_out = Conv2D(1, kernel_size=4, padding="same", activation="tanh")(norm)
 
 generator = Model(inputs=[noise_in, gen_label_in], outputs=img_out)
-generator.compile(loss='binary_crossentropy', optimizer=gen_optimizer)
 #saves a diagram of the model
 plot_model(generator, to_file=path+'generator.png', show_shapes=True)
 
@@ -164,31 +160,33 @@ disc_label_in = Input(shape=(1,))
 #mirror of generator in terms of number of filters
 conv = Conv2D(32, kernel_size=3, padding="same", strides=2)(img_in)
 activation = LeakyRelu()(conv)
-dropout = Dropout(0.5)(activation)
+norm = BatchNormalization()(activation)
 
-conv = Conv2D(64, kernel_size=3, padding="same", strides=2)(dropout)
+conv = Conv2D(64, kernel_size=3, padding="same", strides=2)(norm)
 activation = LeakyRelu()(conv)
-dropout = Dropout(0.5)(activation)
+norm = BatchNormalization()(activation)
 
-conv = Conv2D(128, kernel_size=3, padding="same", strides=2)(dropout)
+conv = Conv2D(128, kernel_size=3, padding="same", strides=2)(norm)
 activation = LeakyRelu()(conv)
-dropout = Dropout(0.5)(activation)
+norm = BatchNormalization()(activation)
 
-conv = Conv2D(256, kernel_size=3, padding="same")(dropout)
+conv = Conv2D(256, kernel_size=3, padding="same")(norm)
 activation = LeakyRelu()(conv)
-dropout = Dropout(0.5)(activation)
+norm = BatchNormalization()(activation)
 
-flatten = Flatten()(dropout)
+flatten = Flatten()(norm)
 
 #the model has two outputs one outputs a 0 or 1 for real or fake
-discrim_out = Dense(1, activation='sigmoid')(flatten)
+discrim_out = Dense(1)(flatten)
+activation = LeakyRelu()(discrim_out)
+
 #the other outputs a one hot encoded class prediction
 class_out = Dense(10, activation='softmax')(flatten)
 
 #creates discirmnator and classifier models
 discriminator = Model(inputs=img_in, outputs=discrim_out)
 classifier = Model(inputs=img_in, outputs=class_out)
-discriminator.compile(loss='binary_crossentropy', optimizer=discrim_optimizer)
+discriminator.compile(loss='mse', optimizer=discrim_optimizer)
 classifier.compile(loss='categorical_crossentropy', optimizer=classifier_optimizer)
 plot_model(discriminator, to_file=path+'discriminator.png', show_shapes=True)
 plot_model(classifier, to_file=path+'classifier.png', show_shapes=True)
@@ -204,7 +202,7 @@ discrim_out = discriminator(img_out)
 label_out = classifier(img_out)
 #goes from the generator inputs to the discrimantor output and the label output ie every layer
 combined = Model(inputs=[noise_in, gen_label_in], outputs=[discrim_out, label_out])
-combined.compile(loss=['binary_crossentropy', 'categorical_crossentropy'], optimizer=gen_optimizer)
+combined.compile(loss=['mse', 'categorical_crossentropy'], optimizer=gen_optimizer)
 
 plot_model(combined, to_file=path+'model.png', show_shapes=True)
 
@@ -251,10 +249,8 @@ if True:
 else:
     epoch = 0
 
-epoch = 0
-
-#this is 64 as the models are trained on 32 real and 32 fake
-batch_size = 32
+#this is 98 as the models are trained on 49 real and 49 fake
+batch_size = 49
 while True:
     #generating y data
     #fake is 1 and valid is 0 to help with training
@@ -280,8 +276,6 @@ while True:
     #sepearte batches to help batch norm (I think)
     disc_loss_1 = discriminator.train_on_batch(images, valid)
     disc_loss_2 = discriminator.train_on_batch(gen_images, fake)
-    #takes the mean of the two losses
-    disc_loss = (disc_loss_1+disc_loss_2)/2
     
     #trains the classifier with the one hot enecoded classes of the real images
     class_loss = classifier.train_on_batch(images, to_categorical(Y[index], 10))
@@ -294,12 +288,10 @@ while True:
     
     #if the epoch is a multiple of 100
     if epoch%100 == 0:
-        #lets you know what epoch we are on
-        print(epoch)
         #tells us the losses
         #gen_loss gives the loss for the discrimnaor output, clasifiee routpu and total in the order [total, discrinanor, classifier]
         #new line at the end to make it easier to tell where one epoch ends and another begins
-        print(disc_loss_1, disc_loss_2, disc_loss, class_loss, gen_loss, "\n")
+        print(disc_loss_1, disc_loss_2, class_loss, gen_loss, "\n")
         
         with open("epoch.txt", "w") as f:
             #checkpoint the epoch so the epoch  number is correct when restarting
@@ -346,9 +338,8 @@ while True:
             plt.subplots_adjust(left=0, right=1, bottom=0, top=0.96, wspace=0, hspace=0.7)
             #saves it to the images folder with a name of the current epoch
             figure.savefig(path+"images/"+str(epoch)+".png")
-            #closes the figure
+            #closes the figure else it sticks around using up RAM
             plt.close(figure)
-
     epoch += 1
     #increments the progress bar by 1
     progress_bar.update(1)

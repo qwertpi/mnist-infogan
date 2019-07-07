@@ -79,9 +79,11 @@ def reverse_tanh(x):
     :return: the changed numpy array
     '''
     #makes -1=0 and 1=1
-    #rounds to the nearest integer for pure black and white (no grays)
-    return np.rint(x * 0.5 +0.5)
+    return x * 0.5 + 0.5
 
+#keras treats batch norm wierldy if it belevies we are predicting
+K.clear_session()
+K.set_learning_phase(1)
 #loads the model from the saved model file
 json_file = open('model.json', 'r')
 
@@ -93,19 +95,24 @@ model = model_from_json(loaded_model_json, mapping)
 # load weights into new model
 model.load_weights("gen.h5")
 
+#stops batch norm from still training
+for layer in model.layers:
+    if "norm" in layer.name:
+        layer.trainable = False
+        
 #the number of images to generate
 num = 144
 while True:
     #generates the noise to be fed into the model
     noise = np.random.normal(0, 1, (num, 100))
-    label = np.array([randint(0,10) for i in range(0, num)])
+    label = np.array([randint(0,9) for i in range(0, num)])
     #generates images
-    gen_img = model.predict([noise, label])
+    gen_img = reverse_tanh(model.predict([noise, label]))
     fig = plt.figure()
     #creates the matplotlib plot
     for i in range(0, num):
         fig.add_subplot(ceil(sqrt(num)), ceil(sqrt(num)), i+1)
-        plt.imshow(reverse_tanh(gen_img[i].reshape(28,28)), cmap="gray", vmin=0, vmax=1, interpolation="lanczos")
+        plt.imshow(gen_img[i].reshape(28,28), cmap="gray", vmin=0, vmax=1, interpolation="lanczos")
         plt.title(label[i], {'fontsize':8})
         plt.axis("off")
     #fullscreen style
