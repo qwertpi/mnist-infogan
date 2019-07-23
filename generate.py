@@ -13,8 +13,8 @@ class LeakyRelu(Layer):
 
     def __init__(self, **kwargs):
         super(LeakyRelu, self).__init__(**kwargs)
-        #aprox 90% chance of being 0.1-0.45 and aprox 50% chance of 0.2-0.35 and also aprox 50% chance of being 0.3-0.5 with overall the highest chance at 0.3
-        self.alpha_initializer = RandomNormal(0.3, 0.1)
+        
+        self.alpha_initializer = RandomNormal(0.25, 0.1)
         self.__name__ = "LeakyRelu"
         if K.backend() == "tensorflow":
             from tensorflow import where
@@ -29,32 +29,24 @@ class LeakyRelu(Layer):
         '''Called by Keras on init to set up the trainable paramters'''
         #makes alpha_a and alpha_b learnable PRelu style
         #seperate alphas for -1 leakage and 1 leakage
-        #beta controls where the leakages start and is also trainable
-        #each layer will have it's own sperate alpha_a, alpha_b, beta_a and beta_b as a seperate LeakyRelu object is used for each layer
+        #each layer will have it's own sperate alpha_a and alpha_b
+        #starts like a fairly normal leakyrelu
         self.alpha_a = self.add_weight(name='alpha_a',
                                        shape=(1,),
                                        initializer=self.alpha_initializer,
                                        trainable=True)
         self.alpha_b = self.add_weight(name='alpha_b',
                                        shape=(1,),
-                                       initializer=self.alpha_initializer,
+                                       initializer=Constant(1),
                                        trainable=True)
-        
-        self.beta_a = self.add_weight(name='beta_a',
-                                      shape=(1,),
-                                      initializer=Constant(-1),
-                                      trainable=True)
-        self.beta_b = self.add_weight(name='beta_b',
-                                      shape=(1,),
-                                      initializer=Constant(1),
-                                      trainable=True)
+
     def call(self, x):
         '''Where the main logic lives'''
         x = K.cast(x, "float32")
         #y=alpha*x+c rearnaged so at x=-1 the leaky component also outputs -1 (see https://www.desmos.com/calculator/fnsuod7zka)
-        self.c_a = -1 * self.alpha_a * self.beta_a + self.beta_a
+        self.c_a = self.alpha_a - 1
         #same as above but so at x=1 leaky outputs 1
-        self.c_b = -1 * self.alpha_b * self.beta_b + self.beta_b
+        self.c_b = -1 * self.alpha_b + 1
         '''
         This is the same as
         if x>-1:
@@ -65,7 +57,7 @@ class LeakyRelu(Layer):
         else:
             x*self.alpha_a+self.c_a
         '''
-        return self.switch(K.greater(x, self.beta_a), self.switch(K.less(x, self.beta_b), x, x*self.alpha_b+self.c_b), x*self.alpha_a+self.c_a)
+        return self.switch(K.greater(x, -1), self.switch(K.less(x, 1), x, x * -1 + self.c_b), x * self.alpha_a + self.c_a)
 
     def compute_output_shape(self, input_shape):
         '''Called by keras so it knows what input shape the next layer can expect'''
@@ -112,7 +104,7 @@ while True:
     #creates the matplotlib plot
     for i in range(0, num):
         fig.add_subplot(ceil(sqrt(num)), ceil(sqrt(num)), i+1)
-        plt.imshow(gen_img[i].reshape(28,28), cmap="gray", vmin=0, vmax=1, interpolation="lanczos")
+        plt.imshow(gen_img[i].reshape(28,28), cmap="gray", vmin=0, vmax=1)
         plt.title(label[i], {'fontsize':8})
         plt.axis("off")
     #fullscreen style

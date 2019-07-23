@@ -9,6 +9,7 @@ import keras.backend as K
 from keras.datasets import mnist
 import numpy as np
 import matplotlib.pyplot as plt
+#change this to from tqdm import tqdm_notebook as tqdm if using a juptyer notebook
 from tqdm import tqdm
 from keras.utils import plot_model
 
@@ -25,8 +26,8 @@ class LeakyRelu(Layer):
 
     def __init__(self, **kwargs):
         super(LeakyRelu, self).__init__(**kwargs)
-        #aprox 90% chance of being 0.1-0.45 and aprox 50% chance of 0.2-0.35 and also aprox 50% chance of being 0.3-0.5 with overall the highest chance at 0.3
-        self.alpha_initializer = RandomNormal(0.3, 0.1)
+        
+        self.alpha_initializer = RandomNormal(0.25, 0.1)
         self.__name__ = "LeakyRelu"
         if K.backend() == "tensorflow":
             from tensorflow import where
@@ -41,8 +42,7 @@ class LeakyRelu(Layer):
         '''Called by Keras on init to set up the trainable paramters'''
         #makes alpha_a and alpha_b learnable PRelu style
         #seperate alphas for -1 leakage and 1 leakage
-        #beta controls where the leakages start and is also trainable
-        #each layer will have it's own sperate alpha_a, alpha_b, beta_a and beta_b as a seperate LeakyRelu object is used for each layer
+        #each layer will have it's own sperate alpha_a and alpha_b
         #starts like a fairly normal leakyrelu
         self.alpha_a = self.add_weight(name='alpha_a',
                                        shape=(1,),
@@ -52,22 +52,14 @@ class LeakyRelu(Layer):
                                        shape=(1,),
                                        initializer=Constant(1),
                                        trainable=True)
-        
-        self.beta_a = self.add_weight(name='beta_a',
-                                      shape=(1,),
-                                      initializer=Constant(-1),
-                                      trainable=True)
-        self.beta_b = self.add_weight(name='beta_b',
-                                      shape=(1,),
-                                      initializer=Constant(1),
-                                      trainable=True)
+
     def call(self, x):
         '''Where the main logic lives'''
         x = K.cast(x, "float32")
         #y=alpha*x+c rearnaged so at x=-1 the leaky component also outputs -1 (see https://www.desmos.com/calculator/fnsuod7zka)
-        self.c_a = -1 * self.alpha_a * self.beta_a + self.beta_a
+        self.c_a = self.alpha_a - 1
         #same as above but so at x=1 leaky outputs 1
-        self.c_b = -1 * self.alpha_b * self.beta_b + self.beta_b
+        self.c_b = -1 * self.alpha_b + 1
         '''
         This is the same as
         if x>-1:
@@ -78,7 +70,7 @@ class LeakyRelu(Layer):
         else:
             x*self.alpha_a+self.c_a
         '''
-        return self.switch(K.greater(x, self.beta_a), self.switch(K.less(x, self.beta_b), x, x*self.alpha_b+self.c_b), x*self.alpha_a+self.c_a)
+        return self.switch(K.greater(x, -1), self.switch(K.less(x, 1), x, x * -1 + self.c_b), x * self.alpha_a + self.c_a)
 
     def compute_output_shape(self, input_shape):
         '''Called by keras so it knows what input shape the next layer can expect'''
@@ -110,13 +102,8 @@ Y = np.concatenate((y_train, y_test))
 noise_in = Input(shape=(100, ))
 gen_label_in = Input(shape=(1, ))
 
-#embeds the 1D class label in 100D space
-label_embedder = Dense(100)
-embedded_gen_label = Dense(100)(gen_label_in)
-activation = LeakyRelu()(embedded_gen_label)
-
-#downcasts the 200D concatanted noise and label vectors into 100D space
-dense = Dense(100)(Concatenate()([noise_in, activation]))
+#downcasts the 101D concatanted noise and label vectors into 100D space
+dense = Dense(100)(Concatenate()([noise_in, gen_label_in]))
 activation = LeakyRelu()(dense)
 
 #12544 = 7*7*256 allowing the reshape to take place
@@ -143,34 +130,37 @@ conv = Conv2DTranspose(64, kernel_size=4, strides=2, padding="same")(norm)
 activation = LeakyRelu()(conv)
 norm = BatchNormalization()(activation)
 
+conv = Conv2DTranspose(32, kernel_size=4, padding="same")(norm)
+activation = LeakyRelu()(conv)
+norm = BatchNormalization()(activation)
+
 #1 as we only want 1 channel ie grayscale output
 #tanh to restrict output to -1 to 1
-img_out = Conv2D(1, kernel_size=4, padding="same", activation="tanh")(norm)
+img_out = Conv2D(1, kernel_size=5, padding="same", activation="tanh")(norm)
 
 generator = Model(inputs=[noise_in, gen_label_in], outputs=img_out)
 #saves a diagram of the model
 plot_model(generator, to_file=path+'generator.png', show_shapes=True)
 
 #discriminator portion of network
+#mirror of generator in terms of number of filters
 #takes a 28x28x1 input ie a 28x28 grayscale image
 img_in = Input((28, 28, 1))
 disc_label_in = Input(shape=(1,))
 
+conv = Conv2D(32, kernel_size=3, padding="same")(img_in)
+activation = LeakyRelu()(conv)
+
 #strides 2 to perform downsampling
-#mirror of generator in terms of number of filters
-conv = Conv2D(32, kernel_size=3, padding="same", strides=2)(img_in)
+conv = Conv2D(64, kernel_size=4, padding="same", strides=2)(activation)
 activation = LeakyRelu()(conv)
 norm = BatchNormalization()(activation)
 
-conv = Conv2D(64, kernel_size=3, padding="same", strides=2)(norm)
+conv = Conv2D(128, kernel_size=4, padding="same", strides=2)(norm)
 activation = LeakyRelu()(conv)
 norm = BatchNormalization()(activation)
 
-conv = Conv2D(128, kernel_size=3, padding="same", strides=2)(norm)
-activation = LeakyRelu()(conv)
-norm = BatchNormalization()(activation)
-
-conv = Conv2D(256, kernel_size=3, padding="same")(norm)
+conv = Conv2D(256, kernel_size=4, padding="same")(norm)
 activation = LeakyRelu()(conv)
 norm = BatchNormalization()(activation)
 
@@ -218,33 +208,33 @@ if True:
     #if the generator weights file exists load it
     try:
         with open(path+"gen.h5", 'r') as f:
-            print("Loading generator checkpoint")
             generator.load_weights(path+"gen.h5")
-    except FileNotFoundError:
+            print("Loaded generator checkpoint")
+    except:
         pass
 #change to if False when doing the first train run after an archticuture change or if you for any other reason don't want to load the checkpoint weights
 if True:
     #if the discriminator weights file exists load it
     try:
         with open(path+"disc.h5", 'r') as f:
-            print("Loading discriminator checkpoint")
             discriminator.load_weights(path+"disc.h5")
-    except FileNotFoundError:
+            print("Loaded discriminator checkpoint")
+    except:
         pass
     
     #if the classifier weights file exists load it
     try:
         with open(path+"class.h5", 'r') as f:
-            print("Loading classifier checkpoint")
             classifier.load_weights(path+"class.h5")
-    except FileNotFoundError:
+            print("Loaded classifier checkpoint")
+    except:
         pass
 
 if True:
     try:
         with open(path+"epoch.txt", 'r') as f:
             epoch = int(f.read())
-    except FileNotFoundError:
+    except:
         epoch = 0
 else:
     epoch = 0
