@@ -6,6 +6,10 @@ Feedback and pull requests are very welcome
 
 Inspired by https://github.com/eriklindernoren/Keras-GAN/blob/master/infogan/infogan.py  
 ![Example output](output.png?raw=true "Example output")  
+<p align="center">
+<img height=200, width=200, src="interpolated.gif?raw=True">
+</p>
+
 ## Copyright
 Copyright © 2019  Rory Sharp All rights reserved.
 
@@ -30,7 +34,8 @@ For a summary of the licence go to https://tldrlegal.com/license/gnu-general-pub
 * h5py `pip3 install h5py`
 * matplotlib `pip3 install matplotlib`
 * tqdm (for training only) (likely to already be installed) `pip3 install tqdm`
-* keract (for intermediate layer visualisation only) `pip3 install keract`
+* keract (for intermediate layer visualisation and linear interpolation only) `pip3 install keract`
+* imageio (for linear interpolation only) `pip3 install imageio`
 * libhdf5 (only needed on some systems) `sudo apt-get install libhdf5-serial-dev`
 
 ## One-liner install
@@ -40,9 +45,14 @@ For a summary of the licence go to https://tldrlegal.com/license/gnu-general-pub
 ### Training (Optional)
 1\. Create a folder called images that will be used to peridocly save generated imaes to during training  
 2\. Change the `if True` statements for checkpoint loading to `if False` when running the code for the first time or it will load the pretrained generator in this repo and spoil your fun  
-3\. Run train.py for as long as you want (I recomend around 20,000 epochs), I trained using google colabatory  
+3\. Run train.py for as long as you want (I recomend around 40,000 epochs), I trained using google colabatory  
 ### Generating
 4\. Run generate.py  
 5\. Marvel at what modern neural networks can do  
 ### Intermideate layer visualistion
 6\. If you run viz.py you will be able to see the outputs of the convolutional layers inbetween the input and output
+### Linear interpolation
+7\. Decide whether you want to be shown the images as a matplotlib plot or as a gif and change the value of save within interpolate.py accordingly  
+8\. Run interpolate.py  
+9\. Provide the starting and finishing classes that the model will smoothly move between (I found that it goes through imbetween classes)  
+10\. If you opted to save find the interpolated.gif file  
