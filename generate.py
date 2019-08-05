@@ -9,27 +9,20 @@ from keras.initializers import RandomNormal, Constant
 import keras.backend as K
 
 class LeakyRelu(Layer):
-    '''Like leaky relu but does leaky for above a threshold and below a theshold with learned thresholds and learned slopes'''
+    '''Like leaky relu but does leaky for above 1 and below -1 with learned slopes for both'''
 
     def __init__(self, **kwargs):
         super(LeakyRelu, self).__init__(**kwargs)
         
         self.alpha_initializer = RandomNormal(0.25, 0.1)
         self.__name__ = "LeakyRelu"
-        if K.backend() == "tensorflow":
-            from tensorflow import where
-            #imports for the whole of the class not just this function and also renames to switch as I find it a more logical name
-            self.switch = where
-        #I use tensorflow and my very brief googling didn't reveal any equaivalent of tensorflow.where for theano
-        elif K.backend() == "theano":
-            print("Sorry only tensorflow is supported for LeakyRelu, if you know how to implement it in theano feel free to send a PR on github")
-            
+        
     #keras requires this takes the parameter input_shape even though we don't use it
     def build(self, input_shape):
         '''Called by Keras on init to set up the trainable paramters'''
         #makes alpha_a and alpha_b learnable PRelu style
         #seperate alphas for -1 leakage and 1 leakage
-        #each layer will have it's own sperate alpha_a and alpha_b
+        #each layer will have it's own sperate alpha_a and alpha_b as a seperate LeakyRelu object is used for each layer
         #starts like a fairly normal leakyrelu
         self.alpha_a = self.add_weight(name='alpha_a',
                                        shape=(1,),
@@ -39,25 +32,26 @@ class LeakyRelu(Layer):
                                        shape=(1,),
                                        initializer=Constant(1),
                                        trainable=True)
-
+        
     def call(self, x):
         '''Where the main logic lives'''
         x = K.cast(x, "float32")
-        #y=alpha*x+c rearnaged so at x=-1 the leaky component also outputs -1 (see https://www.desmos.com/calculator/fnsuod7zka)
-        self.c_a = self.alpha_a - 1
-        #same as above but so at x=1 leaky outputs 1
-        self.c_b = -1 * self.alpha_b + 1
         '''
-        This is the same as
+        This is more or less the same as
         if x>-1:
             if x<1:
                 return x
             else:
-                return x*self.alpha_b+self.c_b
+                return x * self.alpha_b 
         else:
-            x*self.alpha_a+self.c_a
+            x * self.alpha_a
         '''
-        return self.switch(K.greater(x, -1), self.switch(K.less(x, 1), x, x * -1 + self.c_b), x * self.alpha_a + self.c_a)
+        #see https://www.desmos.com/calculator/cpedmjbox1 for an interactive demo of this equation
+        def neg_leaky(x):
+            return K.relu(x + 1) - 1
+        def neg_and_pos_leaky(x):
+            return -1 * K.relu(-1 * neg_leaky(x) + 1) + 1
+        return neg_and_pos_leaky(x) + (neg_leaky(-1 * x - 2) + 1) * - 1 * self.alpha_a + neg_and_pos_leaky(x) + (neg_leaky(x - 2) + 1) * - 1 * self.alpha_b
 
     def compute_output_shape(self, input_shape):
         '''Called by keras so it knows what input shape the next layer can expect'''
