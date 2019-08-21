@@ -103,9 +103,8 @@ activation = LeakyRelu()(dense)
 #12544 = 7*7*256 allowing the reshape to take place
 dense = Dense(12544)(activation)
 activation = LeakyRelu()(dense)
-dropout = Dropout(0.5)(activation)
 #reshapes to form a 7x7 image with 256 channels ready for convolutional layers
-reshape = Reshape((7, 7, 256))(dropout)
+reshape = Reshape((7, 7, 256))(activation)
 
 #by making the kernel_size a multiple of the strides checkerbaord patterns are minimised (https://distill.pub/2016/deconv-checkerboard/ and https://arxiv.org/pdf/1609.05158.pdf)
 #stride 2 for transpose conv results in an output size twice as big ie 14x14

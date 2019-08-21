@@ -67,10 +67,6 @@ def reverse_tanh(x):
     #makes -1=0 and 1=1
     return x * 0.5 + 0.5
 
-#keras treats batch norm wierldy if it belevies we are predicting
-K.clear_session()
-K.set_learning_phase(1)
-#loads the model from the saved model file
 json_file = open('model.json', 'r')
 
 mapping = {'LeakyRelu':LeakyRelu()}
@@ -80,11 +76,6 @@ model = model_from_json(loaded_model_json, mapping)
 
 # load weights into new model
 model.load_weights("gen.h5")
-
-#stops batch norm from still training
-for layer in model.layers:
-    if "norm" in layer.name:
-        layer.trainable = False
         
 #the number of images to generate
 num = 144

@@ -69,9 +69,6 @@ def reverse_tanh(x):
     #rounds to the nearest integer to keep matplotlib happy
     return np.rint(x * 0.5 +0.5)
 
-#keras treats batch norm wierldy if it belevies we are predicting
-K.clear_session()
-K.set_learning_phase(1)
 #loads the model from the saved model file
 json_file = open('model.json', 'r')
 
@@ -82,11 +79,6 @@ model = model_from_json(loaded_model_json, mapping)
 
 # load weights into new model
 model.load_weights("gen.h5")
-
-#stops batch norm from still training
-for layer in model.layers:
-    if "norm" in layer.name:
-        layer.trainable = False
         
 #keract requires model compilation
 model.compile(loss="mse", optimizer="adam")

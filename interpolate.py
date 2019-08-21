@@ -72,9 +72,6 @@ def reverse_tanh(x):
     #makes -1=0 and 1=1
     return np.rint(x * 127.5 + 127.5).astype("uint8")
 
-#keras treats batch norm wierldy if it belevies we are predicting
-K.clear_session()
-K.set_learning_phase(1)
 #loads the model from the saved model file
 json_file = open('model.json', 'r')
 
@@ -112,10 +109,6 @@ for layer in model.layers:
         
 new_model = Model(inputs=z_in, outputs=prev_layer)
 plot_model(new_model, to_file='interpolate.png', show_shapes=True)
-
-for layer in new_model.layers:
-    if "norm" in layer.name:
-        layer.trainable = False
         
 plt.imshow(new_model.predict(z_1).reshape(28,28), cmap="gray")
 plt.show()
@@ -124,7 +117,7 @@ plt.show()
 
 step_size = 256
 #a matplotlib plot of the images can be shown or they can be saved as a gif
-save = True
+save = bool("y" in input("Save as gif?    "))
 
 fig = plt.figure()
 
